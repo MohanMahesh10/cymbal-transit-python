@@ -175,6 +175,8 @@ Optional env vars:
 
 ## Notes
 
+- This project is a Python implementation of the Java reference repo: https://github.com/AbiramiSukumaran/cymbal-transit
+- Related codelab: https://codelabs.developers.google.com/cymbal-bus-agent-mcp-toolbox-java#0
 - This app talks directly to MCP Toolbox via JSON-RPC and does not require the old `mcp-toolbox-sdk-python` package.
 - LangChain is used for optional intent parsing if installed (`langchain-core`).
 - Keep `.env` out of source control.

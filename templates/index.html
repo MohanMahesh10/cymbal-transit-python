@@ -1,0 +1,388 @@
+<!--
+ Copyright 2026 Google LLC
+
+ Licensed under the Apache License, Version 2.0 (the "License");
+ you may not use this file except in compliance with the License.
+ You may obtain a copy of the License at
+
+      https://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing, software
+ distributed under the License is distributed on an "AS IS" BASIS,
+ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ See the License for the specific language governing permissions and
+ limitations under the License.
+-->
+ 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cymbal Transit Concierge</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-gray-100 h-screen flex flex-col font-sans">
+
+    <!-- Header -->
+    <header class="bg-blue-600 text-white p-4 shadow-md flex items-center justify-center gap-3 shrink-0">
+        <i class="fa-solid fa-bus text-2xl"></i>
+        <div>
+            <h1 class="text-xl font-bold leading-tight">Cymbal Transit Concierge</h1>
+            <p class="text-blue-200 text-xs">Powered by AlloyDB & MCP Toolbox</p>
+        </div>
+    </header>
+
+    <!-- Chat Container -->
+    <main id="chat-scroll" class="flex-1 overflow-y-auto p-4 md:p-8 flex justify-center">
+        <div class="w-full max-w-3xl flex flex-col gap-4">
+            <div class="flex flex-col gap-4" id="chat-box">
+            
+            <!-- Agent Welcome Message -->
+            <div class="flex items-start gap-3">
+                <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0 shadow-sm">
+                    <i class="fa-solid fa-robot"></i>
+                </div>
+                <div class="bg-white border border-gray-200 p-4 rounded-2xl rounded-tl-none shadow-sm text-gray-700 max-w-[80%]">
+                    Hello! I'm the Cymbal Transit Concierge. I can help you find bus schedules, book tickets, or answer questions about our travel policies. Where are you heading today?
+                </div>
+            </div>
+
+            </div>
+
+            <section id="tool-activity" class="hidden bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+                <h2 class="text-sm font-semibold text-gray-700 mb-2">Tool Activity</h2>
+                <ul id="tool-activity-list" class="text-xs text-gray-600 space-y-2"></ul>
+            </section>
+
+            <section id="booking-panel" class="hidden bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+                <h2 class="text-sm font-semibold text-gray-700 mb-1">Book Ticket</h2>
+                <p class="text-xs text-gray-500 mb-3">Fill passenger details, choose payment method, and generate ticket.</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+                    <input type="text" id="booking-trip-id" class="md:col-span-2 border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Trip ID">
+                    <input type="text" id="booking-passenger-name" class="border border-gray-300 rounded-lg px-3 py-2 text-sm" placeholder="Passenger name">
+                    <input type="text" id="booking-fare" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-gray-50" placeholder="Fare" readonly>
+                    <select id="payment-method" class="border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white">
+                        <option value="">Select payment method</option>
+                        <option value="Card">Card (Dummy)</option>
+                        <option value="UPI">UPI (Dummy)</option>
+                        <option value="NetBanking">Net Banking (Dummy)</option>
+                        <option value="Wallet">Wallet (Dummy)</option>
+                    </select>
+                </div>
+                <div class="mt-3 flex items-center gap-2">
+                    <button id="book-btn" class="bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        Pay & Generate Ticket
+                    </button>
+                    <span id="booking-status" class="text-xs text-gray-500"></span>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <!-- Loading Indicator (Hidden by default) -->
+    <div id="loading-indicator" class="hidden justify-center pb-4">
+        <div class="flex items-center gap-2 text-gray-500 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
+            <i class="fa-solid fa-circle-notch fa-spin"></i>
+            <span class="text-sm font-medium">Agent is thinking...</span>
+        </div>
+    </div>
+
+    <!-- Input Area -->
+    <footer class="bg-white border-t border-gray-200 p-4 shrink-0">
+        <div class="max-w-3xl mx-auto flex gap-2">
+            <input type="text" id="user-input" 
+                class="flex-1 border border-gray-300 rounded-full px-6 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 transition-all" 
+                placeholder="E.g., I need a bus from New York to Boston tomorrow..."
+                autocomplete="off">
+            <button id="send-btn" 
+                class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+                <i class="fa-solid fa-paper-plane"></i>
+            </button>
+        </div>
+    </footer>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const chatBox = document.getElementById('chat-box');
+            const chatScroll = document.getElementById('chat-scroll');
+            const userInput = document.getElementById('user-input');
+            const sendBtn = document.getElementById('send-btn');
+            const loadingIndicator = document.getElementById('loading-indicator');
+            let stickToBottom = true;
+            
+            function isNearBottom() {
+                const threshold = 80;
+                const distance = chatScroll.scrollHeight - chatScroll.scrollTop - chatScroll.clientHeight;
+                return distance <= threshold;
+            }
+
+            function scrollToBottom(force = false) {
+                if (!force && !stickToBottom) {
+                    return;
+                }
+                chatScroll.scrollTo({ top: chatScroll.scrollHeight, behavior: 'smooth' });
+            }
+
+            chatScroll.addEventListener('scroll', () => {
+                stickToBottom = isNearBottom();
+            });
+
+            function appendUserMessage(text) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'flex items-start justify-end gap-3';
+
+                const bubble = document.createElement('div');
+                bubble.className = 'bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none shadow-sm max-w-[80%] whitespace-pre-wrap';
+                bubble.textContent = text;
+
+                const avatar = document.createElement('div');
+                avatar.className = 'w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 shrink-0 shadow-sm';
+                avatar.innerHTML = '<i class="fa-solid fa-user"></i>';
+
+                msgDiv.appendChild(bubble);
+                msgDiv.appendChild(avatar);
+                chatBox.appendChild(msgDiv);
+                scrollToBottom();
+            }
+
+            function createAgentMessage() {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'flex items-start gap-3';
+
+                const avatar = document.createElement('div');
+                avatar.className = 'w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0 shadow-sm';
+                avatar.innerHTML = '<i class="fa-solid fa-robot"></i>';
+
+                const bubble = document.createElement('div');
+                bubble.className = 'bg-white border border-gray-200 p-4 rounded-2xl rounded-tl-none shadow-sm text-gray-700 max-w-[80%] whitespace-pre-wrap';
+
+                msgDiv.appendChild(avatar);
+                msgDiv.appendChild(bubble);
+                chatBox.appendChild(msgDiv);
+                scrollToBottom();
+                return bubble;
+            }
+
+            function escapeHtml(value) {
+                return String(value)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function parseKeyValueLines(text) {
+                const map = {};
+                text.split('\n').forEach((line) => {
+                    const idx = line.indexOf(':');
+                    if (idx === -1) return;
+                    const key = line.slice(0, idx).trim();
+                    const value = line.slice(idx + 1).trim();
+                    if (key && value) {
+                        map[key] = value;
+                    }
+                });
+                return map;
+            }
+
+            function formatAgentText(text) {
+                const importantLabels = [
+                    'Trip ID',
+                    'Route',
+                    'Departure',
+                    'Arrival',
+                    'Price',
+                    'Fare',
+                    'Seats',
+                    'Passenger',
+                    'Booking ID',
+                    'Status',
+                    'Issued At'
+                ];
+
+                const emphasizedPhrases = [
+                    'Please provide the Trip ID',
+                    'Please share your full name',
+                    'Booking failed',
+                    'No schedules found'
+                ];
+
+                const escaped = escapeHtml(text);
+                const lines = escaped.split('\n').map((line) => {
+                    let styled = line;
+
+                    const bulletLabelMatch = styled.match(/^\s*[-*]\s*([^:]{1,40}:)\s*(.*)$/);
+                    if (bulletLabelMatch) {
+                        styled = `- <strong>${bulletLabelMatch[1]}</strong> ${bulletLabelMatch[2]}`;
+                    }
+
+                    importantLabels.forEach((label) => {
+                        const keyPattern = new RegExp(`^(${label.replace(/[.*+?^${}()|[\\]\\]/g, '\\\\$&')}:)\\s*(.*)$`, 'i');
+                        const match = styled.match(keyPattern);
+                        if (match) {
+                            styled = `<strong>${match[1]}</strong> ${match[2]}`;
+                        }
+                    });
+
+                    emphasizedPhrases.forEach((phrase) => {
+                        const phrasePattern = new RegExp(phrase.replace(/[.*+?^${}()|[\\]\\]/g, '\\\\$&'), 'gi');
+                        styled = styled.replace(phrasePattern, (found) => `<strong>${found}</strong>`);
+                    });
+
+                    return styled;
+                });
+
+                return lines.join('<br>');
+            }
+
+            function buildBarcode(seed) {
+                const safe = String(seed || 'TICKET').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+                const chars = safe.slice(0, 24).split('');
+                const modules = [1, 0, 1, 0, 1];
+
+                chars.forEach((ch, idx) => {
+                    const code = ch.charCodeAt(0) + idx * 17;
+                    const pattern = code.toString(2).padStart(8, '0');
+                    for (let i = 0; i < pattern.length; i++) {
+                        modules.push(pattern[i] === '1' ? 1 : 0);
+                    }
+                    modules.push(0);
+                });
+
+                modules.push(1, 0, 1, 0, 1);
+
+                const bars = [];
+                let i = 0;
+                while (i < modules.length) {
+                    const bit = modules[i];
+                    let run = 1;
+                    while (i + run < modules.length && modules[i + run] === bit) {
+                        run++;
+                    }
+                    if (bit === 1) {
+                        const width = Math.max(2, Math.min(run * 2, 8));
+                        const tall = (i % 7 === 0) || (i % 11 === 0);
+                        const height = tall ? 54 : 42;
+                        bars.push(`<span style="display:inline-block;width:${width}px;height:${height}px;background:#1f2937;margin-right:1px;"></span>`);
+                    } else {
+                        const gap = Math.max(1, Math.min(run, 3));
+                        bars.push(`<span style="display:inline-block;width:${gap}px;height:1px;margin-right:1px;"></span>`);
+                    }
+                    i += run;
+                }
+
+                return bars.join('');
+            }
+
+            function renderTicketCard(bubble, text) {
+                const details = parseKeyValueLines(text);
+                const bookingId = details['Booking ID'] || 'N/A';
+                const tripId = details['Trip ID'] || 'N/A';
+                const passenger = details['Passenger'] || 'N/A';
+                const route = details['Route'] || 'N/A';
+                const departure = details['Departure'] || 'N/A';
+                const arrival = details['Arrival'] || 'N/A';
+                const fare = details['Fare'] || 'N/A';
+                const status = details['Status'] || 'CONFIRMED';
+                const issued = details['Issued At'] || 'N/A';
+                const barcode = buildBarcode(bookingId + tripId);
+
+                bubble.className = 'bg-white border border-emerald-300 p-0 rounded-2xl rounded-tl-none shadow-md text-emerald-950 max-w-[86%] overflow-hidden';
+                bubble.innerHTML = `
+                    <div class="px-5 py-3 bg-emerald-600 text-white">
+                        <div class="text-sm font-semibold">Ticket Confirmed</div>
+                        <div class="text-xs mt-1 opacity-95">Status: ${escapeHtml(status)}</div>
+                    </div>
+
+                    <div class="px-5 py-4 text-sm leading-6">
+                        <div class="mb-2"><span class="font-semibold">Passenger:</span> ${escapeHtml(passenger)}</div>
+                        <div class="mb-2"><span class="font-semibold">Route:</span> ${escapeHtml(route)}</div>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><span class="font-semibold">Departure:</span><br>${escapeHtml(departure)}</div>
+                            <div><span class="font-semibold">Arrival:</span><br>${escapeHtml(arrival)}</div>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2 mb-2">
+                            <div><span class="font-semibold">Fare:</span> ${escapeHtml(fare)}</div>
+                            <div><span class="font-semibold">Trip ID:</span> ${escapeHtml(tripId)}</div>
+                        </div>
+                        <div class="text-xs"><span class="font-semibold">Booking ID:</span> ${escapeHtml(bookingId)}</div>
+                        <div class="text-xs text-emerald-800"><span class="font-semibold">Issued:</span> ${escapeHtml(issued)}</div>
+                    </div>
+
+                    <div class="px-5 pb-5">
+                        <div class="rounded-xl bg-emerald-50 border border-emerald-300 p-3">
+                            <div class="text-[10px] uppercase tracking-[0.2em] text-emerald-700 mb-1">Barcode</div>
+                            <div style="background:#fff;border:1px solid #d1d5db;border-radius:6px;padding:8px;overflow-x:auto;white-space:nowrap;">${barcode}</div>
+                            <div class="text-[10px] font-mono text-emerald-800 mt-1">${escapeHtml(bookingId)}</div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            function appendAgentMessage(text) {
+                const bubble = createAgentMessage();
+                if (text.includes('TICKET_CONFIRMED')) {
+                    renderTicketCard(bubble, text);
+                } else {
+                    bubble.innerHTML = formatAgentText(text);
+                }
+                scrollToBottom();
+            }
+
+            async function handleSend() {
+                const text = userInput.value.trim();
+                if (!text) return;
+
+                userInput.value = '';
+                userInput.disabled = true;
+                sendBtn.disabled = true;
+                appendUserMessage(text);
+                
+                loadingIndicator.classList.remove('hidden');
+                loadingIndicator.classList.add('flex');
+                scrollToBottom();
+
+                try {
+                    const response = await fetch('/api/agent/chat', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'text/plain',
+                        },
+                        body: text
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Chat endpoint unavailable');
+                    }
+
+                    const responseText = await response.text();
+                    appendAgentMessage(responseText);
+                } catch (error) {
+                    console.error('Error:', error);
+                    const agentMessage = createAgentMessage();
+                    agentMessage.textContent = "⚠️ Connection error. Please ensure the server is running.";
+                } finally {
+                    loadingIndicator.classList.add('hidden');
+                    loadingIndicator.classList.remove('flex');
+                    userInput.disabled = false;
+                    sendBtn.disabled = false;
+                    userInput.focus();
+                    scrollToBottom();
+                }
+            }
+
+            sendBtn.addEventListener('click', handleSend);
+            
+            userInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSend();
+                }
+            });
+        });
+    </script>
+</body>
+</html>

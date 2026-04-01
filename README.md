@@ -307,7 +307,7 @@ CMD ["python", "app.py"]
 ## Example Queries
 
 ```
-i need a bus from chennai to salem
+i need a bus from chennai to Hyderabad
 i need a bus from hyderabad to bangalore tomorrow
 i need a bus from mumbai to delhi
 book a ticket

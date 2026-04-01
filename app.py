@@ -5,7 +5,7 @@ import json
 import importlib
 import yaml
 from typing import Any
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from uuid import uuid4
 
 import requests
@@ -78,9 +78,13 @@ class ToolboxClient:
     def __init__(self) -> None:
         app_config = load_app_config_from_tools_yaml()
         yaml_url = app_config.get("mcp_toolbox_url", "").strip()
+        env_url = os.getenv("MCP_TOOLBOX_URL", "").strip()
 
-        # Single source of truth: app.mcp_toolbox_url in tools.yaml
-        configured_url = "" if is_placeholder_url(yaml_url) else yaml_url
+        configured_url = ""
+        if env_url and not is_placeholder_url(env_url):
+            configured_url = env_url
+        elif not is_placeholder_url(yaml_url):
+            configured_url = yaml_url
 
         if configured_url and not configured_url.endswith("/mcp"):
             configured_url = configured_url.rstrip("/") + "/mcp"
@@ -250,7 +254,8 @@ class McpToolboxService:
             "tripId": clean_trip,
             "passengerName": passenger_name,
             "status": "CONFIRMED",
-            "bookingTime": datetime.utcnow().isoformat() + "Z",
+            # FIX: replaced deprecated datetime.utcnow() with timezone-aware datetime
+            "bookingTime": datetime.now(timezone.utc).isoformat(),
             "raw": booking_result.get("raw", ""),
         }
 
@@ -333,7 +338,8 @@ def parse_route_intent(text: str) -> tuple[str, str] | None:
 
 def parse_requested_travel_date(text: str) -> date | None:
     lowered = text.lower()
-    today = datetime.utcnow().date()
+    # FIX: replaced deprecated datetime.utcnow() with timezone-aware datetime
+    today = datetime.now(timezone.utc).date()
     if "tomorrow" in lowered:
         return today + timedelta(days=1)
     if "today" in lowered:
@@ -346,7 +352,6 @@ def parse_departure_datetime(value: str) -> datetime | None:
     if not raw:
         return None
 
-    # Supports ISO payloads and Java-style formatted timestamps from TO_CHAR.
     known_formats = [
         "%Y-%m-%dT%H:%M:%SZ",
         "%Y-%m-%dT%H:%M:%S",
@@ -383,7 +388,6 @@ def parse_json_objects(raw: str) -> list[dict[str, Any]]:
     if objects:
         return objects
 
-    # Fallback for concatenated payloads like {...}{...}
     for match in re.findall(r"\{[^{}]*\}", raw):
         try:
             item = json.loads(match)
@@ -443,8 +447,10 @@ def format_schedule_response(
 
         all_dated_entries = sorted(dated_entries, key=lambda pair: pair[0])
 
-        today_utc = datetime.utcnow().date()
+        # FIX: replaced deprecated datetime.utcnow() with timezone-aware datetime
+        today_utc = datetime.now(timezone.utc).date()
         if requested_date is not None:
+            # FIX: use date-only comparison to avoid timezone offset mismatches
             dated_entries = [pair for pair in dated_entries if pair[0].date() == requested_date]
         else:
             future_entries = [pair for pair in dated_entries if pair[0].date() >= today_utc]
@@ -454,7 +460,6 @@ def format_schedule_response(
         dated_entries.sort(key=lambda pair: pair[0])
         selected = [item for _, item in dated_entries][:max_results]
 
-        # If exact requested day has no services, show the nearest future options.
         if requested_date is not None and not selected and all_dated_entries:
             nearest_future = [pair for pair in all_dated_entries if pair[0].date() > requested_date]
             if nearest_future:
@@ -484,11 +489,11 @@ def format_schedule_response(
     if entries:
         return "No upcoming schedules found for the selected route."
 
-    # Fallback for already formatted strings that got concatenated without newlines.
     if "Trip ID:" in raw:
         blocks = parse_trip_blocks(raw)
         if blocks:
-            today_utc = datetime.utcnow().date()
+            # FIX: replaced deprecated datetime.utcnow() with timezone-aware datetime
+            today_utc = datetime.now(timezone.utc).date()
             filtered_blocks = blocks
             dated_blocks: list[tuple[datetime, dict[str, str]]] = []
             undated_blocks: list[dict[str, str]] = []
@@ -762,7 +767,6 @@ def build_langchain_intent_chain():
             "is_route_list_intent": is_route_list_intent(lowered),
         }
 
-    # LangChain LCEL pipeline used for deterministic message understanding.
     return RunnableLambda(extract_intents)
 
 
@@ -1053,7 +1057,6 @@ def route_message(session_id: str, user_message: str) -> str:
     if not text:
         return "Please enter a message."
 
-    # LangChain orchestrates a deterministic multi-agent flow.
     if MULTI_AGENT_CHAIN is not None:
         try:
             result = MULTI_AGENT_CHAIN.invoke({"session_id": session_id, "text": text})

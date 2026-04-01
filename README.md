@@ -157,6 +157,9 @@ Replace the placeholder variables enclosed in `< >`.
 
 ## Notes
 
-- This is the Python adaptation of the Cymbal Transit demo concept.
+- This is the Python adaptation of the https://github.com/AbiramiSukumaran/cymbal-transit.
 - The app uses `tools.yaml` for MCP tool configuration and endpoint integration.
 - Do not commit real secrets in `tools.yaml`; use placeholders or environment variable expansion.
+## codelab
+https://codelabs.developers.google.com/cymbal-bus-agent-mcp-toolbox-java
+

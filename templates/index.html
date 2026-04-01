@@ -111,6 +111,21 @@
             const sendBtn = document.getElementById('send-btn');
             const loadingIndicator = document.getElementById('loading-indicator');
             let stickToBottom = true;
+            const CONVERSATION_KEY = 'cymbalTransitConversationId';
+
+            function getOrCreateConversationId() {
+                let value = localStorage.getItem(CONVERSATION_KEY);
+                if (value && /^[A-Za-z0-9_-]{8,100}$/.test(value)) {
+                    return value;
+                }
+                value = (window.crypto && typeof window.crypto.randomUUID === 'function')
+                    ? window.crypto.randomUUID().replace(/-/g, '')
+                    : `${Date.now()}${Math.random().toString(36).slice(2, 14)}`;
+                localStorage.setItem(CONVERSATION_KEY, value);
+                return value;
+            }
+
+            const conversationId = getOrCreateConversationId();
             
             function isNearBottom() {
                 const threshold = 80;
@@ -350,7 +365,9 @@
                         method: 'POST',
                         headers: {
                             'Content-Type': 'text/plain',
+                            'X-Conversation-Id': conversationId,
                         },
+                        credentials: 'same-origin',
                         body: text
                     });
 

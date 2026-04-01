@@ -1,18 +1,18 @@
 app:
-  mcp_toolbox_url: "https://toolbox-cymbal-transit-711517179568.us-central1.run.app/mcp"
+  mcp_toolbox_url: "YOUR MCP TOOL BOX URL END POINT/MCP"
   gemini_model_name: ${GEMINI_MODEL_NAME:gemini-2.5-flash}
 
 
 sources:
     alloydb:
         kind: "alloydb-postgres"
-        project: "gen-lang-client-0702920276"
+        project: "YOUR PROJECT ID"
         region: "us-central1"
-        cluster: "my-alloydb-cluster010"
-        instance: "my-primary-inst010"
+        cluster: "YOUR ALLOY DB CLUSTER NAME"
+        instance: "YOUR ALLOY DB INSTANCE NAME"
         database: "postgres"
-        user: "postgres"
-        password: "alloydb"
+        user: "USER NAME"
+        password: "PASSWORD"
         ipType: "public"
 
 authServices:

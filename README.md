@@ -1,4 +1,4 @@
-# CYMBAL BUS AGENT APP for MCP Toolbox Python SDK
+# Cymbal Bus Agentic App for MCP Toolbox Python SDK
 ![Screenshot 2026-04-01 151126](https://github.com/user-attachments/assets/af53cfbf-1760-4f8a-8927-97f9e2415470)
 
 

@@ -1,144 +1,73 @@
-# Demo App for MCP Toolbox (Python)
+# Cymbal Transit Python
 
-## Cymbal Bus Agent
+Production-ready Python implementation of the Cymbal Transit multi-agent bus assistant.
 
-This repository contains a Python version of the Cymbal Transit demo app that uses:
+The app combines Flask, LangChain LCEL routing, and MCP Toolbox tools backed by AlloyDB to support:
 
-1. AlloyDB + MCP Toolbox for tool integration
-2. Cloud Run for Toolbox and app deployment
-3. Flask + optional LangChain intent parsing for agent behavior
+- Route and schedule discovery
+- Policy lookup
+- Ticket booking
+- Seat availability checks
+- Ticket confirmation rendering in the web chat UI
 
-## Architecture
+## Highlights
 
-- **App**: Flask web app (`app.py`) with chat UI (`templates/index.html`)
-- **Tooling**: MCP Toolbox endpoint called over JSON-RPC (`tools/call`)
-- **Data**:
-  - `transit_policies` for RAG-style policy lookup
-  - `bus_schedules` for route/timing/seat availability
-  - `bookings` for ticket transactions
+- Multi-agent orchestration with deterministic intent routing
+- MCP tool execution over JSON-RPC
+- Structured tool contracts in tools.yaml
+- Booking confirmation flow with ticket metadata extraction
+- Lightweight web UI for conversational interactions
 
-## Prerequisites
+## Tech Stack
 
 - Python 3.10+
-- Google Cloud project with billing enabled
-- AlloyDB cluster/instance
-- MCP Toolbox deployed and reachable (Cloud Run recommended)
+- Flask
+- LangChain Core
+- MCP Toolbox Python SDK (toolbox-core)
+- AlloyDB (PostgreSQL + vector extension)
 
-## 1. AlloyDB Setup
+## Repository Layout
 
-Use the quick setup codelab:
+- app.py: Flask server, intent routing, MCP integration
+- templates/index.html: chat UI and ticket card rendering
+- static/css/style.css: styling assets
+- tools.yaml: MCP source and tool definitions
+- requirements.txt: Python dependencies
 
-- https://codelabs.developers.google.com/quick-alloydb-setup
+## Quick Start
 
-### Enable Extensions
-
-```sql
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS google_ml_integration;
-```
-
-### Create Tables
-
-```sql
--- Table 1: Transit Policies (Unstructured Data for RAG)
-CREATE TABLE transit_policies (
-    policy_id SERIAL PRIMARY KEY,
-    category VARCHAR(50),
-    policy_text TEXT,
-    policy_embedding vector(768)
-);
-
--- Table 2: Intercity Bus Schedules (Structured Data)
-CREATE TABLE bus_schedules (
-    trip_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    origin_city VARCHAR(100),
-    destination_city VARCHAR(100),
-    departure_time TIMESTAMP,
-    arrival_time TIMESTAMP,
-    available_seats INT DEFAULT 50,
-    ticket_price DECIMAL(6,2)
-);
-
--- Table 3: Booking Ledger (Transactional Action Data)
-CREATE TABLE bookings (
-    booking_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    trip_id UUID REFERENCES bus_schedules(trip_id),
-    passenger_id VARCHAR(100),
-    status VARCHAR(20) DEFAULT 'CONFIRMED',
-    booking_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Ingest Data
-
-```sql
--- 1) Insert policy text and native AlloyDB embeddings
-INSERT INTO transit_policies (category, policy_text, policy_embedding)
-VALUES
-('Pets', 'Service animals are always welcome. Small pets (under 25 lbs) are allowed in secure carriers for a $25 fee. Large dogs are not permitted on standard coaches.', embedding('text-embedding-005', 'Service animals are always welcome. Small pets (under 25 lbs) are allowed in secure carriers for a $25 fee. Large dogs are not permitted on standard coaches.')),
-('Luggage', 'Each passenger is allowed one carry-on (up to 15 lbs) and two stowed bags (up to 50 lbs each) free of charge. Additional bags cost $15 each.', embedding('text-embedding-005', 'Each passenger is allowed one carry-on (up to 15 lbs) and two stowed bags (up to 50 lbs each) free of charge. Additional bags cost $15 each.')),
-('Refunds', 'Tickets are fully refundable up to 24 hours before departure. Within 24 hours, tickets can be exchanged for travel credit only.', embedding('text-embedding-005', 'Tickets are fully refundable up to 24 hours before departure. Within 24 hours, tickets can be exchanged for travel credit only.'));
-
--- 2) Insert 200+ realistic schedules
-INSERT INTO bus_schedules (origin_city, destination_city, departure_time, arrival_time, ticket_price, available_seats)
-SELECT
-    origin,
-    destination,
-    (CURRENT_DATE + 1) + (interval '4 hours' * seq) AS dep_time,
-    (CURRENT_DATE + 1) + (interval '4 hours' * seq) + interval '4.5 hours' AS arr_time,
-    ROUND((RANDOM() * 30 + 25)::numeric, 2) AS price,
-    FLOOR(RANDOM() * 50 + 1) AS seats
-FROM
-    (VALUES
-        ('New York', 'Boston'), ('Boston', 'New York'),
-        ('Philadelphia', 'Washington DC'), ('Washington DC', 'Philadelphia'),
-        ('Seattle', 'Portland'), ('Portland', 'Seattle')
-    ) AS routes(origin, destination)
-CROSS JOIN generate_series(1, 40) AS seq;
-```
-
-## 2. MCP Toolbox Configuration
-
-Create/update your `tools.yaml` for AlloyDB tools and replace all placeholders with your values.
-
-You can keep values hardcoded or parameterize through environment variables.
-
-If you are using the Java demo repo side-by-side, you can reuse the same `tools.yaml` design.
-
-### Install Toolbox Binary
+### 1) Clone and install
 
 ```bash
-VERSION=0.27.0
-curl -L -o toolbox https://storage.googleapis.com/genai-toolbox/v$VERSION/linux/amd64/toolbox
-chmod +x toolbox
-```
-
-### Deploy Toolbox to Cloud Run
-
-Follow the full guide, especially authentication/IAM setup:
-
-- https://googleapis.github.io/genai-toolbox/how-to/deploy_toolbox/
-
-## 3. Run This Python App Locally
-
-### Create environment variables
-
-Create a `.env` file in this folder:
-
-```env
-FLASK_SECRET_KEY=replace-with-random-secret
-MCP_TOOLBOX_URL=https://YOUR_TOOLBOX_CLOUD_RUN_URL/mcp
-MCP_TOOLBOX_API_KEY=
-PORT=8080
-```
-
-### Install dependencies
-
-```bash
+git clone https://github.com/MohanMahesh10/cymbal-transit-python.git
+cd cymbal-transit-python
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Start the app
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+```
+
+### 2) Configure tools.yaml
+
+Update these sections in tools.yaml:
+
+- app.mcp_toolbox_url
+- sources.alloydb
+- authServices.google_auth (if auth is required)
+
+Important:
+
+- Do not commit real database passwords, client IDs, or private endpoints.
+- Use environment variable interpolation where possible.
+
+### 3) Run the app
 
 ```bash
 python app.py
@@ -148,35 +77,64 @@ Open:
 
 - http://localhost:8080
 
-Health check:
+Health endpoint:
 
 - http://localhost:8080/health
 
-## 4. Deploy App to Cloud Run
+## MCP Tools
+
+The default tool catalog includes:
+
+- find-bus-schedules
+- query-schedules
+- book-ticket
+- book-ticket-ui
+- search-policies
+
+All tools are declared in tools.yaml and invoked from app.py through the toolbox endpoint.
+
+## AlloyDB Schema
+
+Core tables expected by this app:
+
+- transit_policies
+- bus_schedules
+- bookings
+
+If you are bootstrapping from scratch, use the schema and seed pattern from the official Cymbal Transit codelab.
+
+## API Surface
+
+- POST /api/agent/chat
+- POST /chat
+- POST /api/book
+- GET /health
+
+## Deployment
+
+This app is Cloud Run friendly.
 
 ```bash
 gcloud run deploy cymbal-transit-python \
   --source . \
-  --set-env-vars MCP_TOOLBOX_URL=YOUR_MCP_TOOLBOX_URL,PORT=8080 \
+  --set-env-vars PORT=8080 \
   --allow-unauthenticated
 ```
 
-Optional env vars:
+## Security and Git Hygiene
 
-- `FLASK_SECRET_KEY`
-- `MCP_TOOLBOX_API_KEY`
+- .gitignore excludes env and bytecode artifacts.
+- Keep tools.yaml sanitized before pushing.
+- Prefer placeholders or env variables for all credentials.
 
-## API Endpoints
+## Contributing
 
-- `POST /api/agent/chat` - plain text chat input
-- `POST /chat` - SSE response endpoint
-- `POST /api/book` - direct booking endpoint
-- `GET /health` - app + toolbox status
+1. Create a feature branch.
+2. Keep commits scoped and descriptive.
+3. Validate app startup and critical chat flows.
+4. Open a pull request with test notes and screenshots for UI changes.
 
-## Notes
+## Acknowledgements
 
-- This project is a Python implementation of the Java reference repo: https://github.com/AbiramiSukumaran/cymbal-transit
-- Related codelab: https://codelabs.developers.google.com/cymbal-bus-agent-mcp-toolbox-java#0
-- This app talks directly to MCP Toolbox via JSON-RPC and does not require the old `mcp-toolbox-sdk-python` package.
-- LangChain is used for optional intent parsing if installed (`langchain-core`).
-- Keep `.env` out of source control.
+- Reference concept: https://github.com/AbiramiSukumaran/cymbal-transit
+- Codelab: https://codelabs.developers.google.com/cymbal-bus-agent-mcp-toolbox-java#0

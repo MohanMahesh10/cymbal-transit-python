@@ -49,6 +49,15 @@
                 </div>
             </div>
 
+            <!-- Quick Reply Chips -->
+            <div id="quick-replies" class="flex flex-wrap gap-2 pl-13">
+                <button class="quick-chip border border-blue-300 text-blue-600 text-xs px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">🚌 New York → Boston</button>
+                <button class="quick-chip border border-blue-300 text-blue-600 text-xs px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">🚌 Chennai → Hyderabad</button>
+                <button class="quick-chip border border-blue-300 text-blue-600 text-xs px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">💰 Refund policy</button>
+                <button class="quick-chip border border-blue-300 text-blue-600 text-xs px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">🐾 Pet policy</button>
+                <button class="quick-chip border border-blue-300 text-blue-600 text-xs px-3 py-1.5 rounded-full hover:bg-blue-50 transition-colors">🧳 Luggage policy</button>
+            </div>
+
             </div>
 
             <section id="tool-activity" class="hidden bg-white border border-gray-200 rounded-xl shadow-sm p-4">
@@ -81,6 +90,13 @@
         </div>
     </main>
 
+    <!-- Scroll to Bottom Button -->
+    <div id="scroll-btn" class="hidden fixed bottom-24 right-6 z-10">
+        <button onclick="document.getElementById('chat-scroll').scrollTo({top: document.getElementById('chat-scroll').scrollHeight, behavior: 'smooth'})" class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-10 h-10 flex items-center justify-center shadow-lg transition-colors">
+            <i class="fa-solid fa-chevron-down text-sm"></i>
+        </button>
+    </div>
+
     <!-- Loading Indicator (Hidden by default) -->
     <div id="loading-indicator" class="hidden justify-center pb-4">
         <div class="flex items-center gap-2 text-gray-500 bg-white px-4 py-2 rounded-full shadow-sm border border-gray-100">
@@ -92,12 +108,17 @@
     <!-- Input Area -->
     <footer class="bg-white border-t border-gray-200 p-4 shrink-0">
         <div class="max-w-3xl mx-auto flex gap-2">
-            <input type="text" id="user-input" 
-                class="flex-1 border border-gray-300 rounded-full px-6 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 transition-all" 
-                placeholder="E.g., I need a bus from New York to Boston tomorrow..."
-                autocomplete="off">
-            <button id="send-btn" 
-                class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed">
+            <div class="flex-1 flex flex-col gap-1">
+                <textarea id="user-input" maxlength="500" rows="1"
+                    class="w-full border border-gray-300 rounded-2xl px-6 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 transition-all resize-none overflow-hidden leading-relaxed"
+                    placeholder="E.g., I need a bus from New York to Boston tomorrow..."
+                    autocomplete="off"></textarea>
+                <div class="text-right pr-4">
+                    <span id="char-counter" class="text-xs text-gray-400">0 / 500</span>
+                </div>
+            </div>
+            <button id="send-btn"
+                class="bg-blue-600 hover:bg-blue-700 text-white rounded-full w-12 h-12 flex items-center justify-center shadow-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed self-start mt-1">
                 <i class="fa-solid fa-paper-plane"></i>
             </button>
         </div>
@@ -126,6 +147,30 @@
             }
 
             const conversationId = getOrCreateConversationId();
+
+            // Character counter + auto-grow textarea
+            const charCounter = document.getElementById('char-counter');
+            userInput.addEventListener('input', () => {
+                const len = userInput.value.length;
+                charCounter.textContent = `${len} / 500`;
+                charCounter.className = len >= 450 ? 'text-xs text-red-500' : 'text-xs text-gray-400';
+                userInput.style.height = 'auto';
+                userInput.style.height = Math.min(userInput.scrollHeight, 160) + 'px';
+            });
+
+            // Quick reply chips
+            document.querySelectorAll('.quick-chip').forEach(chip => {
+                chip.addEventListener('click', () => {
+                    const text = chip.textContent.replace(/^[^a-zA-Z]+/, '').trim();
+                    userInput.value = text;
+                    charCounter.textContent = `${text.length} / 500`;
+                    document.getElementById('quick-replies').remove();
+                    handleSend();
+                });
+            });
+
+            // Scroll to bottom button
+            const scrollBtn = document.getElementById('scroll-btn');
             
             function isNearBottom() {
                 const threshold = 80;
@@ -142,39 +187,75 @@
 
             chatScroll.addEventListener('scroll', () => {
                 stickToBottom = isNearBottom();
+                scrollBtn.classList.toggle('hidden', isNearBottom());
+                scrollBtn.classList.toggle('flex', !isNearBottom());
             });
 
             function appendUserMessage(text) {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'flex items-start justify-end gap-3';
 
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex flex-col items-end gap-1 max-w-[80%]';
+
                 const bubble = document.createElement('div');
-                bubble.className = 'bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none shadow-sm max-w-[80%] whitespace-pre-wrap';
+                bubble.className = 'bg-blue-600 text-white p-4 rounded-2xl rounded-tr-none shadow-sm whitespace-pre-wrap';
                 bubble.textContent = text;
+
+                const meta = document.createElement('div');
+                meta.className = 'text-[10px] text-gray-400 pr-1';
+                meta.textContent = formatTime();
 
                 const avatar = document.createElement('div');
                 avatar.className = 'w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 shrink-0 shadow-sm';
                 avatar.innerHTML = '<i class="fa-solid fa-user"></i>';
 
-                msgDiv.appendChild(bubble);
+                wrapper.appendChild(bubble);
+                wrapper.appendChild(meta);
+                msgDiv.appendChild(wrapper);
                 msgDiv.appendChild(avatar);
                 chatBox.appendChild(msgDiv);
                 scrollToBottom();
             }
 
+            function formatTime() {
+                return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+            }
+
             function createAgentMessage() {
                 const msgDiv = document.createElement('div');
-                msgDiv.className = 'flex items-start gap-3';
+                msgDiv.className = 'flex items-start gap-3 group';
 
                 const avatar = document.createElement('div');
                 avatar.className = 'w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0 shadow-sm';
                 avatar.innerHTML = '<i class="fa-solid fa-robot"></i>';
 
-                const bubble = document.createElement('div');
-                bubble.className = 'bg-white border border-gray-200 p-4 rounded-2xl rounded-tl-none shadow-sm text-gray-700 max-w-[80%] whitespace-pre-wrap';
+                const wrapper = document.createElement('div');
+                wrapper.className = 'flex flex-col gap-1 max-w-[80%]';
 
+                const bubble = document.createElement('div');
+                bubble.className = 'bg-white border border-gray-200 p-4 rounded-2xl rounded-tl-none shadow-sm text-gray-700 whitespace-pre-wrap relative';
+
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-gray-600 p-1';
+                copyBtn.innerHTML = '<i class="fa-regular fa-copy text-xs"></i>';
+                copyBtn.title = 'Copy';
+                copyBtn.addEventListener('click', () => {
+                    navigator.clipboard.writeText(bubble.innerText).then(() => {
+                        copyBtn.innerHTML = '<i class="fa-solid fa-check text-xs text-emerald-500"></i>';
+                        setTimeout(() => { copyBtn.innerHTML = '<i class="fa-regular fa-copy text-xs"></i>'; }, 1500);
+                    });
+                });
+                bubble.appendChild(copyBtn);
+
+                const meta = document.createElement('div');
+                meta.className = 'text-[10px] text-gray-400 pl-1';
+                meta.textContent = formatTime();
+
+                wrapper.appendChild(bubble);
+                wrapper.appendChild(meta);
                 msgDiv.appendChild(avatar);
-                msgDiv.appendChild(bubble);
+                msgDiv.appendChild(wrapper);
                 chatBox.appendChild(msgDiv);
                 scrollToBottom();
                 return bubble;
@@ -352,6 +433,7 @@
                 if (!text) return;
 
                 userInput.value = '';
+                userInput.style.height = 'auto';
                 userInput.disabled = true;
                 sendBtn.disabled = true;
                 appendUserMessage(text);
@@ -393,8 +475,8 @@
 
             sendBtn.addEventListener('click', handleSend);
             
-            userInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
+            userInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
                     handleSend();
                 }
